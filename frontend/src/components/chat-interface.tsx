@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +39,12 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
   // Load all chats on component mount
   useEffect(() => {
@@ -237,15 +243,13 @@ export function ChatInterface() {
             <Plus className="h-4 w-4 mr-2" />
             New Chat
           </Button>
-        </div>
-
-        <ScrollArea className="flex-1 px-4">
+        </div>        <ScrollArea className="flex-1 px-4">
           <div className="space-y-2">
             {chats.map((chat) => (
               <div key={chat.id} className="group relative">
                 <Button
                   variant={currentChat?.id === chat.id ? "secondary" : "ghost"}
-                  className="w-full justify-start h-auto p-3"
+                  className="w-full justify-start h-auto p-3 pr-10"
                   onClick={() => selectChat(chat)}
                 >
                   <div className="flex flex-col items-start w-full">
@@ -266,7 +270,7 @@ export function ChatInterface() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 h-6 w-6"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
                   onClick={(e) => {
                     e.stopPropagation()
                     deleteChat(chat)
@@ -278,12 +282,10 @@ export function ChatInterface() {
             ))}
           </div>
         </ScrollArea>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex flex-col flex-1">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+      </div>      {/* Main Content */}
+      <div className="flex flex-col flex-1 h-screen">
+        {/* Header - Fixed at top */}
+        <div className="flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
           <div className="flex items-center gap-2">
             {!sidebarOpen && (
               <Button
@@ -303,7 +305,7 @@ export function ChatInterface() {
 
         {/* Error Display */}
         {error && (
-          <div className="bg-destructive/10 text-destructive px-4 py-2 text-sm">
+          <div className="bg-destructive/10 text-destructive px-4 py-2 text-sm sticky top-[73px] z-10">
             {error}
             <Button
               variant="ghost"
@@ -316,8 +318,8 @@ export function ChatInterface() {
           </div>
         )}
 
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
+        {/* Chat Area - Scrollable content between fixed header and input */}
+        <div className="flex-1 flex flex-col overflow-hidden">
           {!currentChat ? (
             /* Upload Area */
             <div className="flex-1 flex items-center justify-center">
@@ -353,11 +355,10 @@ export function ChatInterface() {
                   />
                 </div>
               </div>
-            </div>
-          ) : (
+            </div>          ) : (
             /* Chat Messages */
-            <div className="flex-1 flex flex-col">
-              <ScrollArea className="flex-1 p-4">
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-4 max-w-4xl mx-auto">
                   {messages.length === 0 ? (
                     <div className="text-center py-8">
@@ -394,11 +395,13 @@ export function ChatInterface() {
                       </div>
                     ))
                   )}
+                  {/* Scroll anchor */}
+                  <div ref={messagesEndRef} />
                 </div>
-              </ScrollArea>
+              </div>
 
-              {/* Input Area */}
-              <div className="border-t p-4">
+              {/* Input Area - Fixed at bottom */}
+              <div className="border-t p-4 bg-background sticky bottom-0">
                 <div className="max-w-4xl mx-auto">
                   <div className="flex gap-2">
                     <div className="flex-1">
