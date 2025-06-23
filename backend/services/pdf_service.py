@@ -55,15 +55,17 @@ class PDFService:
                 "file_id": file_id,
                 "filename": filename,
                 "pages_count": int(processed["pages_extracted"]),
-            }
-
-            # ✅ Safe insert with full control
+            }            # ✅ Safe insert with full control
             response = supabase.table("documents").insert(data).execute()
             if hasattr(response, 'error') and response.error:
                 raise HTTPException(status_code=500, detail=f"Database insert failed: {response.error}")
             
+            # Get the inserted document ID
+            document_id = response.data[0]['id'] if response.data else None
+            
             return {
                 "file_id": file_id,
+                "document_id": document_id,  # This is the actual database ID
                 "filename": filename,
                 "signed_url": signed_url,
                 "processing_result": processed
