@@ -6,6 +6,7 @@ from clients.supabase_client import supabase
 from dotenv import load_dotenv
 from services.processor import process_pdf
 
+
 load_dotenv()
 
 class PDFService:
@@ -49,6 +50,17 @@ class PDFService:
 
             # ✅ Auto trigger processing
             processed = process_pdf(file_id, filename, signed_url)
+            
+            data = {
+                "file_id": file_id,
+                "filename": filename,
+                "pages_count": int(processed["pages_extracted"]),
+            }
+
+            # ✅ Safe insert with full control
+            response = supabase.table("documents").insert(data).execute()
+            if hasattr(response, 'error') and response.error:
+                raise HTTPException(status_code=500, detail=f"Database insert failed: {response.error}")
             
             return {
                 "file_id": file_id,
