@@ -13,10 +13,12 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  User
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { apiService } from "@/services/api"
+import { userService } from "@/services/user"
 import type { Chat } from "@/services/api"
 
 interface LocalMessage {
@@ -39,12 +41,17 @@ export function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string>("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  // Initialize user ID
+  useEffect(() => {
+    setCurrentUserId(userService.getUserId())
+  }, [])
 
   // Load all chats on component mount
   useEffect(() => {
@@ -85,11 +92,20 @@ export function ChatInterface() {
       setError('Failed to load chat')
     }
   }
-
   const createNewChat = () => {
     navigate('/chat')
     setCurrentChat(null)
     setMessages([])
+  }
+
+  const resetUser = async () => {
+    const newUserId = userService.resetUserId()
+    setCurrentUserId(newUserId)
+    setChats([])
+    setCurrentChat(null)
+    setMessages([])
+    navigate('/chat')
+    await loadChats()
   }
 
   const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,8 +299,7 @@ export function ChatInterface() {
           </div>
         </ScrollArea>
       </div>      {/* Main Content */}
-      <div className="flex flex-col flex-1 h-screen">
-        {/* Header - Fixed at top */}
+      <div className="flex flex-col flex-1 h-screen">        {/* Header - Fixed at top */}
         <div className="flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
           <div className="flex items-center gap-2">
             {!sidebarOpen && (
@@ -297,10 +312,24 @@ export function ChatInterface() {
               </Button>
             )}
             <h1 className="text-xl font-semibold">
-              {currentChat?.title || "AI Document Assistant"}
+              {currentChat?.title || "PDF-LLM"}
             </h1>
           </div>
-          <ModeToggle />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span className="font-mono text-xs">{currentUserId}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetUser}
+                className="h-6 px-2 text-xs"
+              >
+                Reset User
+              </Button>
+            </div>
+            <ModeToggle />
+          </div>
         </div>
 
         {/* Error Display */}

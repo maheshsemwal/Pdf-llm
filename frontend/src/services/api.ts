@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:8000';
+import { userService } from './user';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export interface Chat {
   id: string;
@@ -25,7 +27,9 @@ export interface ChatWithMessages {
 
 class ApiService {
   // Chat APIs
-  async createChat(title: string, pdfDocumentId: string, fileId: string, userId?: string): Promise<Chat> {
+  async createChat(title: string, pdfDocumentId: string, fileId: string): Promise<Chat> {
+    const userId = userService.getUserId();
+    
     const response = await fetch(`${API_BASE_URL}/chat/create`, {
       method: 'POST',
       headers: {
@@ -78,9 +82,9 @@ class ApiService {
 
     return response.json();
   }
-
   async getAllChats(): Promise<Chat[]> {
-    const response = await fetch(`${API_BASE_URL}/chat/all`);
+    const userId = userService.getUserId();
+    const response = await fetch(`${API_BASE_URL}/chat/user/${userId}/chats`);
 
     if (!response.ok) {
       const error = await response.json();
@@ -99,8 +103,7 @@ class ApiService {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete chat');
     }
-  }
-  // PDF APIs
+  }  // PDF APIs
   async uploadPdf(file: File): Promise<{
     file_id: string;
     document_id: string;
@@ -108,11 +111,15 @@ class ApiService {
     signed_url: string;
     processing_result: any;
   }> {
+    const userId = userService.getUserId();
     const formData = new FormData();
     formData.append('file', file);
 
     const response = await fetch(`${API_BASE_URL}/pdf-upload`, {
       method: 'POST',
+      headers: {
+        'X-User-ID': userId,
+      },
       body: formData,
     });
 

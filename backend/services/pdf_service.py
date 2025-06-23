@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import Tuple
+from typing import Tuple, Optional
 from fastapi import HTTPException, UploadFile
 from clients.supabase_client import supabase
 from dotenv import load_dotenv
@@ -13,7 +13,7 @@ class PDFService:
     def __init__(self):
         self.bucket_name = os.getenv("SUPABASE_BUCKET_NAME")
         
-    async def upload_pdf(self, file: UploadFile) -> dict:
+    async def upload_pdf(self, file: UploadFile, user_id: Optional[str] = None) -> dict:
         """
         Upload a PDF file to Supabase storage and return file info with signed URL
         """
@@ -55,7 +55,10 @@ class PDFService:
                 "file_id": file_id,
                 "filename": filename,
                 "pages_count": int(processed["pages_extracted"]),
-            }            # ✅ Safe insert with full control
+                "user_id": user_id  # Add user_id to document
+            }            
+            
+            # ✅ Safe insert with full control
             response = supabase.table("documents").insert(data).execute()
             if hasattr(response, 'error') and response.error:
                 raise HTTPException(status_code=500, detail=f"Database insert failed: {response.error}")
