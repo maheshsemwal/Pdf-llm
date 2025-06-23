@@ -1,0 +1,36 @@
+# Core FastAPI and web framework dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Data validation and serialization
+pydantic==2.5.0
+
+# Environment and configuration
+python-dotenv==1.0.0
+
+# Database and storage
+supabase==2.3.0
+
+# Vector database and search
+pinecone-client==3.0.0
+
+# Machine Learning and AI
+llama-index==0.9.48
+llama-index-vector-stores-pinecone==0.1.7
+llama-index-embeddings-huggingface==0.1.4
+llama-index-llms-groq==0.1.4
+sentence-transformers==2.2.2
+
+# PDF processing
+PyMuPDF==1.23.14
+
+# HTTP requests
+requests==2.31.0
+
+# Standard library utilities (usually included with Python, but listed for completeness)
+# uuid - built-in
+# os - built-in
+# tempfile - built-in
+# typing - built-in
+# datetime - built-in
