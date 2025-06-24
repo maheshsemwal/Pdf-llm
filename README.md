@@ -48,6 +48,103 @@ AI planet Assessment/
 - **TypeScript** - Type-safe JavaScript
 - **Vite** - Build tool and development server
 
+## 🏛️ System Architecture
+
+### High-Level Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   React Frontend│    │  FastAPI Backend│    │  External APIs  │
+│                 │    │                 │    │                 │
+│  - TypeScript   │◄──►│  - Python       │◄──►│  - Supabase DB  │
+│  - Vite         │    │  - FastAPI      │    │  - Pinecone VDB │
+│  - Tailwind CSS │    │  - Uvicorn      │    │  - Groq/LLaMA   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Component Architecture
+
+```
+Frontend (React/TypeScript)
+├── Components
+│   ├── ChatInterface       # Main chat UI
+│   ├── PDFUpload          # File upload component
+│   ├── ThemeProvider      # Dark/Light mode
+│   └── UI Components      # Reusable UI elements
+├── Services
+│   ├── API Client         # Backend communication
+│   └── User Service       # User session management
+└── State Management       # React state and context
+
+Backend (FastAPI/Python)
+├── Routes
+│   ├── PDF Routes         # File upload/processing
+│   ├── Chat Routes        # Chat management
+│   ├── Question Routes    # Q&A endpoints
+│   └── Process Routes     # PDF processing pipeline
+├── Services
+│   ├── PDF Service        # PDF handling and storage
+│   ├── Embedder Service   # Text embedding generation
+│   ├── LLaMA Query        # AI question answering
+│   ├── Extractor Service  # Text extraction from PDFs
+│   └── Processor Service  # Orchestrates PDF processing
+├── Clients
+│   ├── Supabase Client    # Database operations
+│   └── Pinecone Client    # Vector database operations
+└── Models                 # Pydantic data models
+
+External Services
+├── Supabase
+│   ├── PostgreSQL DB     # Relational data (chats, messages)
+│   └── Storage Bucket    # PDF file storage
+├── Pinecone Vector DB    # Document embeddings
+└── Groq/LLaMA API       # Large Language Model
+```
+
+### Data Flow
+
+1. **PDF Upload & Processing**:
+   ```
+   User uploads PDF → FastAPI receives file → Store in Supabase Storage
+   → Extract text → Generate embeddings → Store in Pinecone → Return file_id
+   ```
+
+2. **Chat Creation**:
+   ```
+   Frontend creates chat → Store chat metadata in Supabase
+   → Associate with PDF file_id → Return chat_id
+   ```
+
+3. **Question Answering**:
+   ```
+   User asks question → Store message in DB → Query Pinecone for relevant context
+   → Send context + question to LLaMA → Generate answer → Store assistant response
+   → Return answer to frontend
+   ```
+
+4. **Chat Management**:
+   ```
+   Frontend requests chat history → Query Supabase for chats/messages
+   → Return formatted chat data → Display in UI
+   ```
+
+### Technology Stack Flow
+
+```
+React Frontend ──HTTP/REST──► FastAPI Backend
+                                    │
+                                    ├──► Supabase (PostgreSQL)
+                                    │    ├── chats table
+                                    │    ├── messages table
+                                    │    └── storage bucket
+                                    │
+                                    ├──► Pinecone Vector DB
+                                    │    └── document embeddings
+                                    │
+                                    └──► Groq/LLaMA API
+                                         └── text generation
+```
+
 ## 📋 Prerequisites
 
 - Python 3.8+
@@ -116,10 +213,183 @@ LLAMA_API_KEY=your_llama_api_key
 
 ## 📚 API Endpoints
 
-- `POST /upload` - Upload PDF documents
-- `POST /ask` - Ask questions about uploaded documents
-- `GET /documents` - List uploaded documents
-- `DELETE /documents/{id}` - Delete a document
+### PDF Management
+
+#### Upload PDF
+- **POST** `/pdf-upload`
+- **Description**: Upload a PDF file to Supabase storage
+- **Headers**: 
+  - `X-User-ID` (optional): User identifier
+- **Body**: Multipart form data
+  - `file`: PDF file (required)
+- **Response**: Upload confirmation with file details
+
+#### Process PDF
+- **POST** `/process`
+- **Description**: Download, extract text, and create embeddings for a PDF
+- **Body**:
+```json
+{
+  "filename": "document.pdf",
+  "file_id": "unique-file-id",
+  "signed_url": "https://storage-url/document.pdf"
+}
+```
+- **Response**:
+```json
+{
+  "file_id": "unique-file-id",
+  "filename": "document.pdf",
+  "pages_extracted": 10,
+  "vectors_stored": 150
+}
+```
+
+### Question & Answer
+
+#### Ask Question
+- **POST** `/ask-question`
+- **Description**: Ask a question about a specific PDF file using AI
+- **Body**:
+```json
+{
+  "file_id": "unique-file-id",
+  "question": "What is the main topic of this document?"
+}
+```
+- **Response**:
+```json
+{
+  "answer": "The main topic of this document is..."
+}
+```
+
+### Chat Management
+
+#### Create Chat
+- **POST** `/chat/create`
+- **Description**: Create a new chat session when PDF is uploaded
+- **Body**:
+```json
+{
+  "title": "Chat about Document Title",
+  "pdf_document_id": "document-id",
+  "file_id": "unique-file-id",
+  "user_id": "user-123" // optional
+}
+```
+- **Response**:
+```json
+{
+  "id": "chat-id",
+  "title": "Chat about Document Title",
+  "pdf_document_id": "document-id",
+  "file_id": "unique-file-id",
+  "user_id": "user-123",
+  "created_at": "2025-06-24T10:30:00Z",
+  "updated_at": "2025-06-24T10:30:00Z"
+}
+```
+
+#### Send Message
+- **POST** `/chat/message`
+- **Description**: Store a message in the database
+- **Body**:
+```json
+{
+  "chat_id": "chat-id",
+  "content": "Hello, what is this document about?",
+  "sender": "user" // "user" or "assistant"
+}
+```
+- **Response**:
+```json
+{
+  "id": "message-id",
+  "chat_id": "chat-id",
+  "content": "Hello, what is this document about?",
+  "sender": "user",
+  "created_at": "2025-06-24T10:35:00Z"
+}
+```
+
+#### Get All Chats
+- **GET** `/chat/all`
+- **Description**: Get all chats (for when user_id is empty)
+- **Response**:
+```json
+[
+  {
+    "id": "chat-id",
+    "title": "Chat about Document Title",
+    "pdf_document_id": "document-id",
+    "file_id": "unique-file-id",
+    "user_id": "user-123",
+    "created_at": "2025-06-24T10:30:00Z",
+    "updated_at": "2025-06-24T10:30:00Z"
+  }
+]
+```
+
+#### Get User Chats
+- **GET** `/chat/user/{user_id}/chats`
+- **Description**: Get all chats for a specific user
+- **Parameters**:
+  - `user_id` (path): User identifier
+- **Response**: Array of chat objects (same format as above)
+
+#### Get Chat with Messages
+- **GET** `/chat/{chat_id}`
+- **Description**: Fetch a chat with all its messages
+- **Parameters**:
+  - `chat_id` (path): Chat identifier
+- **Response**:
+```json
+{
+  "chat": {
+    "id": "chat-id",
+    "title": "Chat about Document Title",
+    "pdf_document_id": "document-id",
+    "file_id": "unique-file-id",
+    "user_id": "user-123",
+    "created_at": "2025-06-24T10:30:00Z",
+    "updated_at": "2025-06-24T10:30:00Z"
+  },
+  "messages": [
+    {
+      "id": "message-id",
+      "chat_id": "chat-id",
+      "content": "Hello, what is this document about?",
+      "sender": "user",
+      "created_at": "2025-06-24T10:35:00Z"
+    }
+  ]
+}
+```
+
+#### Delete Chat
+- **DELETE** `/chat/{chat_id}`
+- **Description**: Delete a chat and all its messages
+- **Parameters**:
+  - `chat_id` (path): Chat identifier
+- **Response**:
+```json
+{
+  "message": "Chat deleted successfully"
+}
+```
+
+### General
+
+#### Health Check
+- **GET** `/`
+- **Description**: Basic health check endpoint
+- **Response**:
+```json
+{
+  "Hello": "World"
+}
+```
 
 ## 🤝 Contributing
 
@@ -139,4 +409,3 @@ If you encounter any issues or have questions, please open an issue on the GitHu
 
 ---
 
-Built with ❤️ for AI Planet Assessment
