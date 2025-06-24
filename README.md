@@ -35,6 +35,37 @@ AI planet Assessment/
 - **Vector Storage**: Efficient document embedding and retrieval
 - **Modern UI**: React-based frontend with TypeScript support
 
+## 🧠 AI Question Answering Capabilities
+
+The system now supports **Hybrid AI Responses** that intelligently combine document-specific information with general knowledge:
+
+### Question Types Supported:
+
+1. **Document-Specific Questions**: 
+   - "What does this document say about X?"
+   - "Summarize this PDF"
+   - "According to this document..."
+   
+2. **General Knowledge Questions**:
+   - "What is artificial intelligence?"
+   - "How does machine learning work?"
+   - "Explain neural networks"
+
+3. **Hybrid Questions** (Document + General Knowledge):
+   - "How does this approach compare to industry standards?"
+   - "What are the implications of these findings?"
+   - "Can you explain the concepts mentioned here?"
+
+### How It Works:
+
+- **Smart Classification**: The system automatically classifies questions to determine the best response approach
+- **Context Retrieval**: Retrieves relevant chunks from the uploaded PDF using vector similarity search  
+- **Intelligent Prompting**: Creates tailored prompts based on question type and available context
+- **Fallback Handling**: Gracefully handles cases where PDF content isn't relevant to the question
+- **Source Attribution**: Clearly indicates whether information comes from the document or general knowledge
+
+This ensures users get comprehensive, accurate answers whether they're asking about their specific document or seeking general information.
+
 ## 🛠️ Technologies Used
 
 ### Backend

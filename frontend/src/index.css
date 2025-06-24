@@ -118,3 +118,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile viewport fixes for chat interface */
+@media (max-width: 768px) {
+  .chat-container {
+    height: 100vh;
+    height: 100dvh; /* Use dynamic viewport height on mobile */
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+}
+
+/* General mobile optimizations */
+@media (max-width: 768px) {
+  html, body {
+    overflow: hidden;
+    position: relative;
+    height: 100vh;
+    height: 100dvh;
+  }
+}

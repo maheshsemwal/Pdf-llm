@@ -129,27 +129,77 @@ class ApiService {
     }
 
     return response.json();
-  }
+  }  // Question API - Now returns streaming response
+  async askQuestionStream(
+    fileId: string, 
+    question: string, 
+    onChunk: (chunk: string) => void,
+    onComplete: () => void,
+    onError: (error: string) => void
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/ask-question`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          file_id: fileId,
+          question,
+        }),
+      });
 
-  // Question API
-  async askQuestion(fileId: string, question: string): Promise<{ answer: string }> {
-    const response = await fetch(`${API_BASE_URL}/ask-question`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        file_id: fileId,
-        question,
-      }),
-    });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to get streaming answer');
+      }
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to get answer');
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body reader available');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.error) {
+                onError(data.error);
+                return;
+              }
+              
+              if (data.done) {
+                onComplete();
+                return;
+              }
+              
+              if (data.chunk) {
+                onChunk(data.chunk);
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Unknown error occurred');
     }
-
-    return response.json();
   }
 }
 

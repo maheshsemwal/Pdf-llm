@@ -21,7 +21,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Root endpoint for health check
+@app.get("/")
+async def root():
+    return {"message": "PDF LLM API is running", "status": "healthy"}
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 # Include routers
 app.include_router(pdf_router)
 app.include_router(question_router)
 app.include_router(chat_router)
+
+# For Render deployment - bind to the PORT environment variable
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ModeToggle } from "@/components/mode-toggle"
+import { StreamingMessage } from "@/components/streaming-message"
 import { 
   Send, 
   Upload, 
@@ -27,13 +28,16 @@ interface LocalMessage {
   sender: "user" | "assistant"
   timestamp: Date
   isLoading?: boolean
+  isStreaming?: boolean
 }
 
 export function ChatInterface() {
   const { chatId } = useParams<{ chatId: string }>()
   const navigate = useNavigate()
   
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Responsive sidebar: default closed on mobile (< 768px), open on desktop
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [chats, setChats] = useState<Chat[]>([])
   const [currentChat, setCurrentChat] = useState<Chat | null>(null)
   const [messages, setMessages] = useState<LocalMessage[]>([])
@@ -43,6 +47,40 @@ export function ChatInterface() {
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string>("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Check if screen is mobile and set initial sidebar state
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      // Auto-hide on mobile, show on desktop
+      if (mobile && sidebarOpen) {
+        setSidebarOpen(false)
+      } else if (!mobile && !sidebarOpen) {
+        setSidebarOpen(true)
+      }
+    }
+
+    checkScreenSize()
+    window.addEventListener('resize', checkScreenSize)
+    return () => window.removeEventListener('resize', checkScreenSize)
+  }, [])
+
+  // Close sidebar when clicking outside on mobile
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isMobile && sidebarOpen) {
+        const sidebar = document.getElementById('sidebar')
+        const target = event.target as Node
+        if (sidebar && !sidebar.contains(target)) {
+          setSidebarOpen(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isMobile, sidebarOpen])
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -87,15 +125,19 @@ export function ChatInterface() {
         timestamp: new Date(msg.created_at)
       })))
       setError(null)
-    } catch (error) {
-      console.error('Failed to load chat:', error)
+    } catch (error) {      console.error('Failed to load chat:', error)
       setError('Failed to load chat')
     }
   }
+
   const createNewChat = () => {
     navigate('/chat')
     setCurrentChat(null)
     setMessages([])
+    // Auto-close sidebar on mobile after creating new chat
+    if (isMobile) {
+      setSidebarOpen(false)
+    }
   }
 
   const resetUser = async () => {
@@ -136,10 +178,8 @@ export function ChatInterface() {
     } finally {
       setIsUploading(false)
       // Reset file input
-      event.target.value = ''
-    }
+      event.target.value = ''    }
   }
-
   const sendMessage = async () => {
     if (!inputMessage.trim() || !currentChat || isLoading) return
 
@@ -152,46 +192,72 @@ export function ChatInterface() {
 
     // Add user message to UI immediately
     setMessages(prev => [...prev, userMessage])
+    const questionText = inputMessage
     setInputMessage("")
     setIsLoading(true)
 
-    // Add loading message for assistant
-    const loadingMessage: LocalMessage = {
-      id: (Date.now() + 1).toString(),
+    // Add streaming message for assistant
+    const streamingMessageId = (Date.now() + 1).toString()
+    const streamingMessage: LocalMessage = {
+      id: streamingMessageId,
       content: "",
       sender: "assistant",
       timestamp: new Date(),
-      isLoading: true
+      isStreaming: true
     }
-    setMessages(prev => [...prev, loadingMessage])
+    setMessages(prev => [...prev, streamingMessage])
 
     try {
       // Store user message in database
-      await apiService.sendMessage(currentChat.id, userMessage.content, "user")      // Get AI response
-      const response = await apiService.askQuestion(
+      await apiService.sendMessage(currentChat.id, userMessage.content, "user")
+
+      let fullResponse = ""
+
+      // Get AI response with streaming
+      await apiService.askQuestionStream(
         currentChat.file_id || '',
-        inputMessage
+        questionText,
+        // onChunk: Update the streaming message content
+        (chunk: string) => {
+          fullResponse += chunk
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { ...msg, content: fullResponse }
+              : msg
+          ))
+        },
+        // onComplete: Mark streaming as finished
+        () => {
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { ...msg, isStreaming: false }
+              : msg
+          ))
+          
+          // Store assistant message in database
+          apiService.sendMessage(currentChat.id, fullResponse, "assistant")
+            .catch(error => console.error('Failed to store assistant message:', error))
+        },
+        // onError: Handle errors
+        (error: string) => {
+          console.error('Streaming error:', error)
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { 
+                  ...msg, 
+                  content: "Sorry, I encountered an error processing your question. Please try again.",
+                  isStreaming: false 
+                }
+              : msg
+          ))
+          setError('Failed to get response')
+        }
       )
-
-      // Remove loading message and add actual response
-      setMessages(prev => prev.filter(msg => !msg.isLoading))
-
-      const assistantMessage: LocalMessage = {
-        id: (Date.now() + 2).toString(),
-        content: response.answer,
-        sender: "assistant",
-        timestamp: new Date()
-      }
-
-      setMessages(prev => [...prev, assistantMessage])
-
-      // Store assistant message in database
-      await apiService.sendMessage(currentChat.id, response.answer, "assistant")
 
     } catch (error) {
       console.error('Failed to send message:', error)
-      // Remove loading message and show error
-      setMessages(prev => prev.filter(msg => !msg.isLoading))
+      // Remove streaming message and show error
+      setMessages(prev => prev.filter(msg => msg.id !== streamingMessageId))
       
       const errorMessage: LocalMessage = {
         id: (Date.now() + 3).toString(),
@@ -206,9 +272,12 @@ export function ChatInterface() {
       setIsLoading(false)
     }
   }
-
   const selectChat = (chat: Chat) => {
     navigate(`/chat/${chat.id}`)
+    // Auto-close sidebar on mobile after selecting a chat
+    if (isMobile) {
+      setSidebarOpen(false)
+    }
   }
 
   const deleteChat = async (chatToDelete: Chat) => {
@@ -230,16 +299,33 @@ export function ChatInterface() {
     if (e.key === "Enter" && !e.shiftKey && !isLoading) {
       e.preventDefault()
       sendMessage()
-    }
-  }
-
+    }  }
   return (
-    <div className="flex h-screen bg-background">
+    <div className="relative flex h-screen bg-background overflow-hidden chat-container"
+         style={{ height: '100vh', maxHeight: '100vh' }}>
+      {/* Backdrop overlay for mobile */}
+      {isMobile && sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className={cn(
-        "flex flex-col border-r bg-background transition-all duration-300",
-        sidebarOpen ? "w-80" : "w-0 overflow-hidden"
-      )}>
+      <div 
+        id="sidebar"
+        className={cn(
+          "flex flex-col bg-background border-r transition-all duration-300 z-50",
+          // Mobile: Fixed positioning with overlay
+          "md:relative md:translate-x-0",
+          isMobile ? "fixed left-0 top-0 h-full" : "relative",
+          sidebarOpen 
+            ? "w-80 translate-x-0" 
+            : isMobile 
+              ? "w-80 -translate-x-full" 
+              : "w-0 overflow-hidden"
+        )}
+      >
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Chat History</h2>
           <Button
@@ -259,7 +345,9 @@ export function ChatInterface() {
             <Plus className="h-4 w-4 mr-2" />
             New Chat
           </Button>
-        </div>        <ScrollArea className="flex-1 px-4">
+        </div>
+
+        <ScrollArea className="flex-1 px-4">
           <div className="space-y-2">
             {chats.map((chat) => (
               <div key={chat.id} className="group relative">
@@ -299,8 +387,8 @@ export function ChatInterface() {
           </div>
         </ScrollArea>
       </div>      {/* Main Content */}
-      <div className="flex flex-col flex-1 h-screen">        {/* Header - Fixed at top */}
-        <div className="flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
+      <div className="flex flex-col flex-1 h-full min-w-0 overflow-hidden">        {/* Header - Fixed at top */}
+        <div className="flex items-center justify-between p-2 md:p-4 border-b bg-background sticky top-0 z-10">
           <div className="flex items-center gap-2">
             {!sidebarOpen && (
               <Button
@@ -345,10 +433,8 @@ export function ChatInterface() {
               <X className="h-3 w-3" />
             </Button>
           </div>
-        )}
-
-        {/* Chat Area - Scrollable content between fixed header and input */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        )}        {/* Chat Area - Scrollable content between fixed header and input */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {!currentChat ? (
             /* Upload Area */
             <div className="flex-1 flex items-center justify-center">
@@ -384,10 +470,9 @@ export function ChatInterface() {
                   />
                 </div>
               </div>
-            </div>          ) : (
-            /* Chat Messages */
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-4">
+            </div>          ) : (            /* Chat Messages */
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="flex-1 overflow-y-auto p-2 md:p-4 min-h-0">
                 <div className="space-y-4 max-w-4xl mx-auto">
                   {messages.length === 0 ? (
                     <div className="text-center py-8">
@@ -396,41 +481,40 @@ export function ChatInterface() {
                       <p className="text-muted-foreground">
                         Ask any question about your uploaded PDF: <strong>{currentChat.title}</strong>
                       </p>
-                    </div>
-                  ) : (
+                    </div>                  ) : (
                     messages.map((message) => (
                       <div
-                        key={message.id}
-                        className={cn(
-                          "flex gap-3 p-4 rounded-lg",
+                        key={message.id}                        className={cn(
+                          "flex gap-2 md:gap-3",
                           message.sender === "user" 
-                            ? "bg-primary text-primary-foreground ml-auto max-w-[80%]" 
-                            : "bg-muted max-w-[80%]"
+                            ? "justify-end" 
+                            : "justify-start"
                         )}
-                      >
-                        <div className="flex-1">
-                          {message.isLoading ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Thinking...</span>
+                      >                        {message.sender === "assistant" ? (
+                          <StreamingMessage
+                            content={message.content}
+                            isStreaming={message.isStreaming || false}
+                            timestamp={message.timestamp}
+                          />
+                        ) : (                          <div className="flex gap-2 md:gap-3 justify-end">
+                            <div className="bg-primary text-primary-foreground p-3 md:p-4 rounded-lg max-w-[85%] md:max-w-[80%]">
+                              <p className="whitespace-pre-wrap">{message.content}</p>
+                              <span className="text-xs opacity-70 mt-2 block">
+                                {message.timestamp.toLocaleTimeString()}
+                              </span>
+                            </div>                            <div className="flex-shrink-0 w-6 h-6 md:w-8 md:h-8 bg-secondary rounded-full flex items-center justify-center mt-1">
+                              <User className="w-3 h-3 md:w-4 md:h-4 text-secondary-foreground" />
                             </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap">{message.content}</p>
-                          )}
-                          <span className="text-xs opacity-70 mt-2 block">
-                            {message.timestamp.toLocaleTimeString()}
-                          </span>
-                        </div>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
                   {/* Scroll anchor */}
                   <div ref={messagesEndRef} />
                 </div>
-              </div>
-
-              {/* Input Area - Fixed at bottom */}
-              <div className="border-t p-4 bg-background sticky bottom-0">
+              </div>              {/* Input Area - Fixed at bottom */}
+              <div className="border-t p-2 md:p-4 bg-background flex-shrink-0">
                 <div className="max-w-4xl mx-auto">
                   <div className="flex gap-2">
                     <div className="flex-1">
