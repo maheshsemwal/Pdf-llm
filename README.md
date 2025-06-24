@@ -224,27 +224,6 @@ LLAMA_API_KEY=your_llama_api_key
   - `file`: PDF file (required)
 - **Response**: Upload confirmation with file details
 
-#### Process PDF
-- **POST** `/process`
-- **Description**: Download, extract text, and create embeddings for a PDF
-- **Body**:
-```json
-{
-  "filename": "document.pdf",
-  "file_id": "unique-file-id",
-  "signed_url": "https://storage-url/document.pdf"
-}
-```
-- **Response**:
-```json
-{
-  "file_id": "unique-file-id",
-  "filename": "document.pdf",
-  "pages_extracted": 10,
-  "vectors_stored": 150
-}
-```
-
 ### Question & Answer
 
 #### Ask Question
