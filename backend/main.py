@@ -35,9 +35,3 @@ async def health_check():
 app.include_router(pdf_router)
 app.include_router(question_router)
 app.include_router(chat_router)
-
-# For Render deployment - bind to the PORT environment variable
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
