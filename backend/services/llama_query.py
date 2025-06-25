@@ -70,9 +70,9 @@ def classify_question_type(question: str) -> str:
     
     # Document-specific indicators
     doc_indicators = [
-        "in this document", "in the pdf", "according to this", "in the file",
+        "in this document", "pdf", "in the pdf", "according to this", "in the file",
         "what does this say", "summarize this", "what is this about",
-        "in the text", "the document says", "this paper", "this report"
+        "in the text", "the document says", "this paper", "this report", "document"
     ]
     
     # General knowledge indicators  
@@ -99,6 +99,11 @@ def classify_question_type(question: str) -> str:
 async def _ask_question_internal(file_id: str, question: str) -> str:
     try:
         print(f"Querying for file_id: {file_id}, question: {question}")
+        
+        # Validate file_id
+        if not file_id or file_id.strip() == "":
+            print("Error: Empty file_id provided")
+            return "I apologize, but I don't see a PDF document attached to this conversation. Could you please upload a PDF file first, or provide more context about what document you're referring to?"
         
         # ✅ Connect LlamaIndex to Pinecone vector store
         vector_store = PineconeVectorStore(
@@ -128,7 +133,7 @@ async def _ask_question_internal(file_id: str, question: str) -> str:
             print(f"Retrieved {len(retrieved_nodes)} relevant chunks from PDF")
         else:
             print("No relevant context found in PDF")
-          # ✅ Create prompts based on question type and available context
+        # ✅ Create prompts based on question type and available context
         if question_type == "document_specific":
             # User explicitly asking about the document
             if pdf_context.strip():
@@ -141,9 +146,8 @@ Question: {question}
 
 Answer:"""
             else:
-                prompt = f"""I don't have enough information in the uploaded document to answer your specific question about it. Could you try asking about different aspects of the document, or check if your question relates to the content that was uploaded?
-
-Question: {question}"""
+                # Return response directly instead of sending to LLM
+                return "I apologize, but I don't see a PDF document attached to this conversation. Could you please upload a PDF file first, or provide more context about what document you're referring to?"
                 
         elif question_type == "general_knowledge":
             # User asking general knowledge question
@@ -180,7 +184,8 @@ Answer:"""        # ✅ Query the LLM directly with our custom prompt
         return response_str
         
     except Exception as e:
-        print(f"Error in ask_question: {e}")        # Fallback: Try with just general knowledge
+        print(f"Error in ask_question: {e}")
+        # Fallback: Try with just general knowledge
         try:
             print("Falling back to general knowledge only...")
             fallback_prompt = f"""Answer the following question in a helpful and informative way.
@@ -194,14 +199,15 @@ Answer:"""
             return str(response)
         except Exception as fallback_error:
             print(f"Fallback error: {fallback_error}")
-            return f"I apologize, but I encountered an error processing your question. Please try rephrasing your question or try again later."
+            return "I apologize, but I encountered an error processing your question. Please try rephrasing your question or try again later."
 
 
 async def ask_question_stream(file_id: str, question: str):
     """
     Stream the response character by character for real-time display
     """
-    try:        # Get the full response first
+    try:
+        # Get the full response first
         full_response = await _ask_question_internal(file_id, question)
         
         # Stream character by character with a slight delay for realistic typing effect
