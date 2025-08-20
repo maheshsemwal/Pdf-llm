@@ -36,18 +36,15 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-# Include routers with error handling
-try:
-    from routes.pdf_routes import router as pdf_router
-    from routes.ask_question import router as question_router
-    from routes.chat_routes import router as chat_router
-    
-    app.include_router(pdf_router)
-    app.include_router(question_router)
-    app.include_router(chat_router)
-except ImportError as e:
-    print(f"Warning: Could not import routes due to missing dependencies: {e}")
-    print("Running in minimal mode with basic endpoints only")
+# Basic test endpoint
+@app.get("/test")
+async def test_endpoint():
+    return {"message": "Server is working", "environment": os.getenv("ENVIRONMENT", "development")}
+
+# TODO: Include routers once dependencies are resolved
+# app.include_router(pdf_router)
+# app.include_router(question_router)
+# app.include_router(chat_router)
 
 if __name__ == "__main__":
     import uvicorn
