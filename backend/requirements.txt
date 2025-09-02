@@ -1,3 +1,30 @@
-fastapi
-uvicorn[standard]
-python-dotenv
+# Core server
+fastapi==0.115.13
+uvicorn[standard]==0.34.3
+python-dotenv==1.1.0
+python-multipart==0.0.20
+pydantic==2.11.7
+
+# PDF processing
+PyMuPDF==1.26.1
+
+# Embeddings / LLMs
+sentence-transformers==4.1.0
+huggingface-hub==0.33.0
+transformers==4.52.4
+torch==2.7.1
+
+# Pinecone
+pinecone-client==3.2.2
+
+# LlamaIndex ecosystem
+llama-index-core
+llama-index-embeddings-huggingface
+llama-index-llms-groq
+llama-index-vector-stores-pinecone
+
+# Supabase
+supabase==2.15.3
+
+# Utilities
+requests==2.32.4
